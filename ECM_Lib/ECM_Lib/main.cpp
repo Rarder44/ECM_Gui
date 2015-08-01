@@ -19,9 +19,9 @@ const char* ToECM(char* Source, char* Dest);
 
 extern "C"
 {
-	__declspec(dllexport) void ConvertToECM(char* Source, char* Dest) 
+	__declspec(dllexport) const char* ConvertToECM(char* Source, char* Dest)
 	{
-		ToECM(Source, Dest);
+		return ToECM(Source, Dest);
 		
 	}
 }
