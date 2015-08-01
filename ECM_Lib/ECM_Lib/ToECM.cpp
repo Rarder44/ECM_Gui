@@ -18,33 +18,28 @@ static ecc_uint32 edc_lut[256];
 
 
 const char* ToECM(char* Source, char* Dest);
+FILE *fin, *fout;
+
 
 
 extern "C"
 {
 	
-	
+
 	typedef void(__stdcall * ProgressCallback)(int);
 	ProgressCallback progFunction;
 	__declspec(dllexport) int ConvertToECM(char* Source, char* Dest,  ProgressCallback Progression)
 	{
-
-
 		progFunction = Progression;
-
 		ToECM(Source, Dest);
-		
 		return 1;
 	}
 
-	__declspec(dllexport) void test()
+	__declspec(dllexport) void TryCloseFileStream()
 	{
-
-		printf("ciao");
-
-		return;
+		fclose(fout);
+		fclose(fin);
 	}
-
 
 }
 
@@ -262,19 +257,10 @@ void setcounter_analyze(unsigned n) {
 		unsigned e = (mycounter_encode + 64) / 128;
 		unsigned d = (mycounter_total + 64) / 128;
 		if (!d) d = 1;
-		//printf( "Analyzing (%02d%%) Encoding (%02d%%)\r",			(100 * a) / d, (100 * e) / d			);
 
 
 		if (progFunction)
 			progFunction((int)((100 * e) / d));
-		
-
-
-		/*_itoa_s((int)((100 * e) / d), charmycounter_encode, 10, 2);
-		string ss;
-		ss.append("encode: ");
-		ss.append(charmycounter_encode);
-		printf(ss.c_str());*/
 
 
 	}
@@ -287,18 +273,11 @@ void setcounter_encode(unsigned n) {
 		unsigned e = (n + 64) / 128;
 		unsigned d = (mycounter_total + 64) / 128;
 		if (!d) d = 1;
-		//printf( "Analyzing (%02d%%) Encoding (%02d%%)\r",			(100 * a) / d, (100 * e) / d			);
 
 
 		if (progFunction)
 			progFunction((int)((100 * e) / d));
 
-
-		/*_itoa_s((int)((100 * e) / d), charmycounter_encode, 10, 2);
-		string ss;
-		ss.append("encode: ");
-		ss.append(charmycounter_encode);
-		printf(ss.c_str());*/
 
 	}
 	mycounter_encode = n;
@@ -427,7 +406,7 @@ int ecmify(FILE *in, FILE *out) {
 		case 3: incheckpos += 2336; inqueuestart += 2336; dataavail -= 2336; break;
 		}
 	}
-	printf("2\n");
+
 	if (curtypecount) {
 		fseek(in, curtype_in_start, SEEK_SET);
 		typetally[curtype] += curtypecount;
@@ -446,11 +425,11 @@ int ecmify(FILE *in, FILE *out) {
 /***************************************************************************/
 
 const char* ToECM(char* Source, char* Dest) {
-	FILE *fin, *fout;
+	
 	char buff[10];
 	eccedc_init();
 
-	printf( "1\n");
+	
 
 	errno_t errorCodefin = fopen_s(&fin, Source,"rb");
 
@@ -473,12 +452,13 @@ const char* ToECM(char* Source, char* Dest) {
 	}
 
 	ecmify(fin, fout);
-	printf("3\n");
 
 	fclose(fout);
 	fclose(fin);
-	printf("4\n");
+
 
 
 	return "";
 }
+
+

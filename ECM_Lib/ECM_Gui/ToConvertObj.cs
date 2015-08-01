@@ -17,6 +17,8 @@ namespace ECM_Gui
         FileInfo _Source;
         FileInfo _Dest;
 
+        Thread Conversion = null;
+
          public ConvertAction Action
         {
             get { return _Action; }
@@ -104,7 +106,7 @@ namespace ECM_Gui
         {
             GlobVar.Status = StatusApp.OnConvertSingle;
 
-            Thread t = new Thread(() => {
+            Conversion = new Thread(() => {
                 try
                 {
                    ECMService.ProgressCallback callback =
@@ -126,9 +128,24 @@ namespace ECM_Gui
                 }
                     
             });
-            t.Start();
+            Conversion.Start();
             
-            
+        }
+
+        public void Stop()
+        {
+            new Thread(() =>
+            {
+                if (Conversion != null && Conversion.IsAlive)
+                {
+                    Conversion.Abort();
+                    Conversion.Join();
+                    ECMService.TryCloseFileStream();
+                    if (Done != null)
+                        Done(StatusConvert.Aborted);
+
+                }
+            }).Start();
         }
 
 
@@ -178,5 +195,5 @@ namespace ECM_Gui
         }
     }
     public enum ConvertAction { ToECM, ToIMG, NoAction };
-    public enum StatusConvert { Complete, Error };
+    public enum StatusConvert { Complete, Error,Aborted };
 }

@@ -15,11 +15,13 @@ namespace ECM_Gui.Services
         public delegate void ProgressCallback(int value);
 
 
-        [DllImport("ECM_Lib.dll")]
-        public static extern int ConvertToECM(string Source, string Dest, [MarshalAs(UnmanagedType.FunctionPtr)] ProgressCallback callbackPointer);
+        [DllImport("ECM_Lib.dll", CallingConvention = CallingConvention.Cdecl)]
+        public static extern int ConvertToECM([MarshalAs(UnmanagedType.LPStr)]string Source, [MarshalAs(UnmanagedType.LPStr)]string Dest, [MarshalAs(UnmanagedType.FunctionPtr)] ProgressCallback callbackPointer);
 
-        [DllImport("ECM_Lib.dll")]
-        public static extern void test();
+        [DllImport("ECM_Lib.dll", CallingConvention = CallingConvention.Cdecl)]
+        public static extern int TryCloseFileStream();
+
+
 
         public ECMService()
         {

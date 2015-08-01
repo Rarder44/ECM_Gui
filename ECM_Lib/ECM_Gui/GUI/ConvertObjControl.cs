@@ -15,6 +15,12 @@ namespace ECM_Gui
         private ToConvertObj _objToConvert = null;
         private StatusObj _Status = StatusObj.Waiting;
 
+
+
+        private string TextConvert = "Converti";
+        private string TextStop = "Stop";
+
+
         public ToConvertObj objToConvert
         {
             get
@@ -28,6 +34,49 @@ namespace ECM_Gui
                 textBox2.Text = _objToConvert.Dest.FullName;
             }
         }
+
+        delegate void InvokeChangeStatusDel(StatusObj s);
+        private void InvocheChangeStatus(StatusObj s)
+        {
+            _Status = s;
+            if (_Status == StatusObj.Complete)
+            {
+                progressBar1.Value = 100;
+                this.BackColor = Color.FromArgb(128, 255, 128);
+                button1.Visible = false;
+                button1.Enabled = false;
+            }
+                
+            else if (_Status == StatusObj.Error)
+            {
+                progressBar1.Value = 0;
+                this.BackColor = Color.FromArgb(255, 108, 108);
+                button1.Visible = false;
+                button1.Enabled = false;
+            }
+            else if (_Status == StatusObj.Stopping)
+            {
+                this.BackColor = SystemColors.Control;
+                button1.Enabled = false;
+                button1.Visible = true;
+            }
+            else if (_Status == StatusObj.Waiting)
+            {
+                this.BackColor = SystemColors.Control;
+                button1.Text = TextConvert;
+                button1.Enabled = true;
+                button1.Visible = true;
+            }
+            else if (_Status == StatusObj.Working)
+            {
+                this.BackColor = SystemColors.Control;
+                button1.Text = TextStop;
+                button1.Enabled = true;
+                button1.Visible = true;
+            }
+
+        }
+
         public StatusObj Status
         {
             get
@@ -36,13 +85,14 @@ namespace ECM_Gui
             }
             set
             {
-                _Status = value;
-                if (_Status == StatusObj.Complete)
-                    this.BackColor = Color.FromArgb(128, 255, 128);
-                else if (_Status == StatusObj.Error)
-                    this.BackColor = Color.FromArgb(255, 108, 108);
+
+                if(this.InvokeRequired)
+                    this.Invoke(new InvokeChangeStatusDel(InvocheChangeStatus), new object[] { value });
+                
                 else
-                    this.BackColor = SystemColors.Control;
+                    InvocheChangeStatus(value);
+                
+               
             }
         }
 
@@ -51,6 +101,7 @@ namespace ECM_Gui
         public ConvertObjControl()
         {
             InitializeComponent();
+            button1.Text = TextConvert;
 
         }
 
@@ -61,18 +112,33 @@ namespace ECM_Gui
         }
         private void button1_Click(object sender, EventArgs e)
         {
-            _objToConvert.Progress += _objToConvert_Progress;
-            _objToConvert.Done += _objToConvert_Done;
+            if (_Status == StatusObj.Waiting)
+            {
+                Status = StatusObj.Working;
+                _objToConvert.Progress += _objToConvert_Progress;
+                _objToConvert.Done += _objToConvert_Done;
 
-            _objToConvert.Convert();
+                _objToConvert.Convert();
+            }
+            else if (_Status == StatusObj.Working)
+            {
+                Status = StatusObj.Stopping;
+                _objToConvert.Stop();
+            }
+            else
+                MessageBox.Show("La conversione è già stata eseguita");
         }
 
         private void _objToConvert_Done(StatusConvert sc)
         {
+            
+
             if (sc == StatusConvert.Complete)
                 Status = StatusObj.Complete;
             else if (sc == StatusConvert.Error)
                 Status = StatusObj.Error;
+            else if (sc == StatusConvert.Aborted)
+                Status = StatusObj.Waiting;
         }
 
         private void _objToConvert_Progress(int progress)
@@ -84,6 +150,7 @@ namespace ECM_Gui
         {
             Waiting,
             Working,
+            Stopping,
             Complete,
             Error
         }
