@@ -5,6 +5,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ECM_Gui.ClassExtension;
+using ECM_Gui.Services;
+using System.Threading;
+using System.Windows.Forms;
 
 namespace ECM_Gui
 {
@@ -84,6 +87,49 @@ namespace ECM_Gui
 
 
 
+        public delegate void ProgressCallback(int progress);
+        /// <summary>
+        /// Registra un evento per il progress ( in percentuale ) dell'operazione in corso 
+        /// </summary>
+        public event ProgressCallback Progress;
+
+
+        public delegate void DoneCallback(StatusConvert sc);
+        /// <summary>
+        /// Quando il Convert termina
+        /// </summary>
+        public event DoneCallback Done;
+
+        public void Convert()
+        {
+            GlobVar.Status = StatusApp.OnConvertSingle;
+
+            Thread t = new Thread(() => {
+                try
+                {
+                   ECMService.ProgressCallback callback =
+                   (value) =>
+                   {
+                       if (Progress != null)
+                           Progress(value);
+                   };
+
+                    ECMService.ConvertToECM(_Source.FullName, _Dest.FullName, callback);
+                    GlobVar.Status = StatusApp.Waiting;
+                    if (Done != null)
+                        Done(StatusConvert.Complete);
+                }
+                catch(Exception ex)
+                {
+                    if (Done != null)
+                        Done(StatusConvert.Error);
+                }
+                    
+            });
+            t.Start();
+            
+            
+        }
 
 
 
@@ -98,11 +144,11 @@ namespace ECM_Gui
             if (extension.StartsWith("."))
                 extension = extension.Remove(0, 1);
 
-            if (GlobVar.ImgExtension.Contains((extension.ToUpper())))
+            if (GlobVar.ImgExtensions.Contains((extension.ToUpper())))
             {
                 return GlobVar.DefaultECMExtension;
             }
-            else if (GlobVar.ECMExtension.Contains((extension.ToUpper())))
+            else if (GlobVar.ECMExtensions.Contains((extension.ToUpper())))
             {
                 return GlobVar.DefaultImgExtension;
             }
@@ -120,11 +166,11 @@ namespace ECM_Gui
         {
             if (extension.StartsWith("."))
                 extension = extension.Remove(0, 1);
-            if (GlobVar.ImgExtension.Contains((extension.ToUpper())))
+            if (GlobVar.ImgExtensions.Contains((extension.ToUpper())))
             {
                 return ConvertAction.ToECM;
             }
-            else if (GlobVar.ECMExtension.Contains((extension.ToUpper())))
+            else if (GlobVar.ECMExtensions.Contains((extension.ToUpper())))
             {
                 return ConvertAction.ToIMG;
             }
@@ -132,5 +178,5 @@ namespace ECM_Gui
         }
     }
     public enum ConvertAction { ToECM, ToIMG, NoAction };
-
+    public enum StatusConvert { Complete, Error };
 }

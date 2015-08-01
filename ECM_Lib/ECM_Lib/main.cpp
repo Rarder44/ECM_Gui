@@ -15,18 +15,38 @@ static ecc_uint8 ecc_b_lut[256];
 static ecc_uint32 edc_lut[256];
 
 
+
+
 const char* ToECM(char* Source, char* Dest);
+
 
 extern "C"
 {
-	__declspec(dllexport) const char* ConvertToECM(char* Source, char* Dest)
+	
+	
+	typedef void(__stdcall * ProgressCallback)(int);
+	ProgressCallback progFunction;
+	__declspec(dllexport) int ConvertToECM(char* Source, char* Dest,  ProgressCallback Progression)
 	{
-		return ToECM(Source, Dest);
+
+
+		progFunction = Progression;
+
+		ToECM(Source, Dest);
 		
+		return 1;
 	}
+
+	__declspec(dllexport) void test()
+	{
+
+		printf("ciao");
+
+		return;
+	}
+
+
 }
-
-
 
 
 /* Init routine */
@@ -226,7 +246,7 @@ void write_type_count(
 
 /***************************************************************************/
 
-/*unsigned mycounter_analyze;
+unsigned mycounter_analyze;
 unsigned mycounter_encode;
 unsigned mycounter_total;
 
@@ -242,9 +262,21 @@ void setcounter_analyze(unsigned n) {
 		unsigned e = (mycounter_encode + 64) / 128;
 		unsigned d = (mycounter_total + 64) / 128;
 		if (!d) d = 1;
-		fprintf(stderr, "Analyzing (%02d%%) Encoding (%02d%%)\r",
-			(100 * a) / d, (100 * e) / d
-			);
+		//printf( "Analyzing (%02d%%) Encoding (%02d%%)\r",			(100 * a) / d, (100 * e) / d			);
+
+
+		if (progFunction)
+			progFunction((int)((100 * e) / d));
+		
+
+
+		/*_itoa_s((int)((100 * e) / d), charmycounter_encode, 10, 2);
+		string ss;
+		ss.append("encode: ");
+		ss.append(charmycounter_encode);
+		printf(ss.c_str());*/
+
+
 	}
 	mycounter_analyze = n;
 }
@@ -255,12 +287,22 @@ void setcounter_encode(unsigned n) {
 		unsigned e = (n + 64) / 128;
 		unsigned d = (mycounter_total + 64) / 128;
 		if (!d) d = 1;
-		fprintf(stderr, "Analyzing (%02d%%) Encoding (%02d%%)\r",
-			(100 * a) / d, (100 * e) / d
-			);
+		//printf( "Analyzing (%02d%%) Encoding (%02d%%)\r",			(100 * a) / d, (100 * e) / d			);
+
+
+		if (progFunction)
+			progFunction((int)((100 * e) / d));
+
+
+		/*_itoa_s((int)((100 * e) / d), charmycounter_encode, 10, 2);
+		string ss;
+		ss.append("encode: ");
+		ss.append(charmycounter_encode);
+		printf(ss.c_str());*/
+
 	}
 	mycounter_encode = n;
-}*/
+}
 
 /***************************************************************************/
 /*
@@ -283,7 +325,7 @@ unsigned in_flush(
 			edc = edc_computeblock(edc, buf, b);
 			fwrite(buf, 1, b, out);
 			count -= b;
-			//setcounter_encode(ftell(in));
+			setcounter_encode(ftell(in));
 		}
 		return edc;
 	}
@@ -294,19 +336,19 @@ unsigned in_flush(
 			edc = edc_computeblock(edc, buf, 2352);
 			fwrite(buf + 0x00C, 1, 0x003, out);
 			fwrite(buf + 0x010, 1, 0x800, out);
-			//setcounter_encode(ftell(in));
+			setcounter_encode(ftell(in));
 			break;
 		case 2:
 			fread(buf, 1, 2336, in);
 			edc = edc_computeblock(edc, buf, 2336);
 			fwrite(buf + 0x004, 1, 0x804, out);
-			//setcounter_encode(ftell(in));
+			setcounter_encode(ftell(in));
 			break;
 		case 3:
 			fread(buf, 1, 2336, in);
 			edc = edc_computeblock(edc, buf, 2336);
 			fwrite(buf + 0x004, 1, 0x918, out);
-			//setcounter_encode(ftell(in));
+			setcounter_encode(ftell(in));
 			break;
 		}
 	}
@@ -331,7 +373,7 @@ int ecmify(FILE *in, FILE *out) {
 	int typetally[4];
 	fseek(in, 0, SEEK_END);
 	intotallength = ftell(in);
-	//resetcounter(intotallength);
+	resetcounter(intotallength);
 	typetally[0] = 0;
 	typetally[1] = 0;
 	typetally[2] = 0;
@@ -342,6 +384,7 @@ int ecmify(FILE *in, FILE *out) {
 	fputc('M', out);
 	fputc(0x00, out);
 	for (;;) {
+
 		if ((dataavail < 2352) && (dataavail < (intotallength - inbufferpos))) {
 			int willread = intotallength - inbufferpos;
 			if (willread >((sizeof(inputqueue) - 4) - dataavail)) willread = (sizeof(inputqueue) - 4) - dataavail;
@@ -350,7 +393,7 @@ int ecmify(FILE *in, FILE *out) {
 				inqueuestart = 0;
 			}
 			if (willread) {
-				//setcounter_analyze(inbufferpos);
+				setcounter_analyze(inbufferpos);
 				fseek(in, inbufferpos, SEEK_SET);
 				fread(inputqueue + 4 + dataavail, 1, willread, in);
 				inbufferpos += willread;
@@ -384,6 +427,7 @@ int ecmify(FILE *in, FILE *out) {
 		case 3: incheckpos += 2336; inqueuestart += 2336; dataavail -= 2336; break;
 		}
 	}
+	printf("2\n");
 	if (curtypecount) {
 		fseek(in, curtype_in_start, SEEK_SET);
 		typetally[curtype] += curtypecount;
@@ -406,12 +450,14 @@ const char* ToECM(char* Source, char* Dest) {
 	char buff[10];
 	eccedc_init();
 
+	printf( "1\n");
+
 	errno_t errorCodefin = fopen_s(&fin, Source,"rb");
 
 	if (errorCodefin!=0) {
 		string ss;
 		ss.append("Input: err n ");
-		_itoa_s(errorCodefin, buff, 1);
+		_itoa_s(errorCodefin, buff, 2);
 		ss.append(buff);
 		return ss.c_str();
 	}
@@ -419,15 +465,20 @@ const char* ToECM(char* Source, char* Dest) {
 	if (errorCodefout!=0) {
 		string ss;
 		ss.append("Output: err n ");
-		_itoa_s(errorCodefin, buff, 1);
+		_itoa_s(errorCodefin, buff, 2);
 		ss.append(buff);
 
 		fclose(fin);
 		return ss.c_str();
 	}
+
 	ecmify(fin, fout);
+	printf("3\n");
+
 	fclose(fout);
 	fclose(fin);
+	printf("4\n");
+
 
 	return "";
 }

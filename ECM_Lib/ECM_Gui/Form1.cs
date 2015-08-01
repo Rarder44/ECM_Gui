@@ -10,23 +10,31 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using ECM_Gui.ClassExtension;
+using ECM_Gui.Util;
 
 namespace ECM_Gui
 {
     public partial class Form1 : Form
     {
-        [DllImport("TestLib.dll")]
-        public static extern string ConvertToECM(string Source, string Dest);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool AllocConsole();
 
         public Form1()
         {
             InitializeComponent();
             GlobVar.InitGlobVar();
-          
+
+            foreach(Tuple<string,string> t in GlobVar.ResourceToExtract)
+                ResourceExtractor.ExtractResourceToFile(t.Item1, t.Item2);
+            
+           
         }
 
         private void Form1_Load(object sender, EventArgs e)
         {
+            AllocConsole();
 
         }
 
@@ -62,27 +70,40 @@ namespace ECM_Gui
 
         private void button1_Click(object sender, EventArgs e)
         {
+            if (GlobVar.Status == StatusApp.Waiting)
+            {
 
+            }
+            else
+                MessageBox.Show("completare l'operazione in corso e riprovare");
         }
 
         private void button2_Click(object sender, EventArgs e)
         {
-            convertObjPanel1.Controls.Clear();
+            if (GlobVar.Status == StatusApp.Waiting)
+                convertObjPanel1.Controls.Clear();
+            else
+                MessageBox.Show("completare l'operazione in corso e riprovare");
         }
 
         private void button3_Click(object sender, EventArgs e)
         {
-            openFileDialog1.FileName = "";
-            if (openFileDialog1.ShowDialog()==DialogResult.OK)
+            if (GlobVar.Status == StatusApp.Waiting)
             {
-                foreach(string file in  openFileDialog1.FileNames)
+                openFileDialog1.FileName = "";
+                if (openFileDialog1.ShowDialog() == DialogResult.OK)
                 {
-                    if (File.Exists(file))
+                    foreach (string file in openFileDialog1.FileNames)
                     {
-                        convertObjPanel1.AddUnique(new ToConvertObj(file));
+                        if (File.Exists(file))
+                        {
+                            convertObjPanel1.AddUnique(new ToConvertObj(file));
+                        }
                     }
                 }
             }
+            else
+                MessageBox.Show("completare l'operazione in corso e riprovare");
         }
     }
 }
