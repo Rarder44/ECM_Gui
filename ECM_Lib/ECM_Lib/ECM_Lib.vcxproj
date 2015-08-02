@@ -146,7 +146,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="ToECM.cpp" />
+    <ClCompile Include="ECM.cpp" />
+    <ClCompile Include="ReturnObj.cpp" />
+    <ClCompile Include="UnECM.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ReturnObj.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

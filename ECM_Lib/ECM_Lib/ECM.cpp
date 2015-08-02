@@ -20,7 +20,7 @@ static ecc_uint32 edc_lut[256];
 const char* ToECM(char* Source, char* Dest);
 FILE *fin, *fout;
 
-
+const char* ECM(char* Source, char* Dest);
 
 extern "C"
 {
@@ -31,7 +31,7 @@ extern "C"
 	__declspec(dllexport) int ConvertToECM(char* Source, char* Dest,  ProgressCallback Progression)
 	{
 		progFunction = Progression;
-		ToECM(Source, Dest);
+		ECM(Source, Dest);
 		return 1;
 	}
 
@@ -44,7 +44,7 @@ extern "C"
 }
 
 
-/* Init routine */
+
 static void eccedc_init(void) {
 	ecc_uint32 i, j, edc;
 	for (i = 0; i < 256; i++) {
@@ -57,10 +57,6 @@ static void eccedc_init(void) {
 	}
 }
 
-/***************************************************************************/
-/*
-** Compute EDC for a block
-*/
 ecc_uint32 edc_computeblock(
 	ecc_uint32  edc,
 	const ecc_uint8  *src,
@@ -70,10 +66,7 @@ ecc_uint32 edc_computeblock(
 	return edc;
 }
 
-/***************************************************************************/
-/*
-** Compute ECC for a block (can do either P or Q)
-*/
+
 static int ecc_computeblock(
 	ecc_uint8 *src,
 	ecc_uint32 major_count,
@@ -130,15 +123,7 @@ static int ecc_generate(
 	return r;
 }
 
-/***************************************************************************/
 
-/*
-** sector types:
-** 00 - literal bytes
-** 01 - 2352 mode 1         predict sync, mode, reserved, edc, ecc
-** 02 - 2336 mode 2 form 1  predict redundant flags, edc, ecc
-** 03 - 2336 mode 2 form 2  predict redundant flags, edc
-*/
 
 int check_type(unsigned char *sector, int canbetype1) {
 	int canbetype2 = 1;
@@ -283,10 +268,7 @@ void setcounter_encode(unsigned n) {
 	mycounter_encode = n;
 }
 
-/***************************************************************************/
-/*
-** Encode a run of sectors/literals of the same type
-*/
+
 unsigned in_flush(
 	unsigned edc,
 	unsigned type,
@@ -334,7 +316,6 @@ unsigned in_flush(
 	return edc;
 }
 
-/***************************************************************************/
 
 unsigned char inputqueue[1048576 + 4];
 
@@ -357,7 +338,6 @@ int ecmify(FILE *in, FILE *out) {
 	typetally[1] = 0;
 	typetally[2] = 0;
 	typetally[3] = 0;
-	/* Magic identifier */
 	fputc('E', out);
 	fputc('C', out);
 	fputc('M', out);
@@ -424,7 +404,7 @@ int ecmify(FILE *in, FILE *out) {
 
 /***************************************************************************/
 
-const char* ToECM(char* Source, char* Dest) {
+const char* ECM(char* Source, char* Dest) {
 	
 	char buff[10];
 	eccedc_init();
