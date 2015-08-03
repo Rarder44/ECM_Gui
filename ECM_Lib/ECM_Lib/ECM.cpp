@@ -2,14 +2,16 @@
 #include <stdlib.h>
 #include <string>
 #include <string.h>
+#include "ReturnObj.h"
+
 using namespace std;
 
-/* Data types */
+
 #define ecc_uint8 unsigned char
 #define ecc_uint16 unsigned short
 #define ecc_uint32 unsigned
 
-/* LUTs used for computing ECC/EDC */
+
 static ecc_uint8 ecc_f_lut[256];
 static ecc_uint8 ecc_b_lut[256];
 static ecc_uint32 edc_lut[256];
@@ -17,10 +19,11 @@ static ecc_uint32 edc_lut[256];
 
 
 
-const char* ToECM(char* Source, char* Dest);
+const char* ECM(char* Source, char* Dest);
+
 FILE *fin, *fout;
 
-const char* ECM(char* Source, char* Dest);
+
 
 extern "C"
 {
@@ -28,18 +31,37 @@ extern "C"
 
 	typedef void(__stdcall * ProgressCallback)(int);
 	ProgressCallback progFunction;
-	__declspec(dllexport) int ConvertToECM(char* Source, char* Dest,  ProgressCallback Progression)
+	__declspec(dllexport) ReturnObj* ConvertToECM(char* Source, char* Dest,  ProgressCallback Progression)
 	{
 		progFunction = Progression;
 		ECM(Source, Dest);
-		return 1;
+		return new ReturnObj(0,"");
 	}
 
+	
+
+	__declspec(dllexport) void TryCloseFinStream()
+	{
+		try
+		{
+			fclose(fin);
+		}
+		catch (...) {}
+	}
+	__declspec(dllexport) void TryCloseFoutStream()
+	{
+		try
+		{
+			fclose(fout);
+		}
+		catch (...) {}
+	}
 	__declspec(dllexport) void TryCloseFileStream()
 	{
-		fclose(fout);
-		fclose(fin);
+		TryCloseFinStream();
+		TryCloseFoutStream();
 	}
+
 
 }
 
@@ -67,7 +89,19 @@ ecc_uint32 edc_computeblock(
 }
 
 
-static int ecc_computeblock(
+
+
+
+
+
+
+
+
+
+
+
+
+static int ecc_computeblock_ECM(
 	ecc_uint8 *src,
 	ecc_uint32 major_count,
 	ecc_uint32 minor_count,
@@ -96,29 +130,20 @@ static int ecc_computeblock(
 	return 1;
 }
 
-/*
-** Generate ECC P and Q codes for a block
-*/
-static int ecc_generate(
-	ecc_uint8 *sector,
-	int        zeroaddress,
-	ecc_uint8 *dest
-	) {
+
+static int ecc_generate_ECM(	ecc_uint8 *sector,	int        zeroaddress,	ecc_uint8 *dest	) 
+{
 	int r;
 	ecc_uint8 address[4], i;
-	/* Save the address and zero it out */
 	if (zeroaddress) for (i = 0; i < 4; i++) {
 		address[i] = sector[12 + i];
 		sector[12 + i] = 0;
 	}
-	/* Compute ECC P code */
-	if (!(ecc_computeblock(sector + 0xC, 86, 24, 2, 86, dest + 0x81C - 0x81C))) {
+	if (!(ecc_computeblock_ECM(sector + 0xC, 86, 24, 2, 86, dest + 0x81C - 0x81C))) {
 		if (zeroaddress) for (i = 0; i < 4; i++) sector[12 + i] = address[i];
 		return 0;
 	}
-	/* Compute ECC Q code */
-	r = ecc_computeblock(sector + 0xC, 52, 43, 86, 88, dest + 0x8C8 - 0x81C);
-	/* Restore the address */
+	r = ecc_computeblock_ECM(sector + 0xC, 52, 43, 86, 88, dest + 0x8C8 - 0x81C);
 	if (zeroaddress) for (i = 0; i < 4; i++) sector[12 + i] = address[i];
 	return r;
 }
@@ -197,19 +222,15 @@ int check_type(unsigned char *sector, int canbetype1) {
 		) {
 		canbetype3 = 0;
 	}
-	/* Check ECC */
-	if (canbetype1) { if (!(ecc_generate(sector, 0, sector + 0x81C))) { canbetype1 = 0; } }
-	if (canbetype2) { if (!(ecc_generate(sector - 0x10, 1, sector + 0x80C))) { canbetype2 = 0; } }
+	if (canbetype1) { if (!(ecc_generate_ECM(sector, 0, sector + 0x81C))) { canbetype1 = 0; } }
+	if (canbetype2) { if (!(ecc_generate_ECM(sector - 0x10, 1, sector + 0x80C))) { canbetype2 = 0; } }
 	if (canbetype1) return 1;
 	if (canbetype2) return 2;
 	if (canbetype3) return 3;
 	return 0;
 }
 
-/***************************************************************************/
-/*
-** Encode a type/count combo
-*/
+
 void write_type_count(
 	FILE *out,
 	unsigned type,
@@ -269,13 +290,7 @@ void setcounter_encode(unsigned n) {
 }
 
 
-unsigned in_flush(
-	unsigned edc,
-	unsigned type,
-	unsigned count,
-	FILE *in,
-	FILE *out
-	) {
+unsigned in_flush(unsigned edc,unsigned type,unsigned count,FILE *in,FILE *out) {
 	unsigned char buf[2352];
 	write_type_count(out, type, count);
 	if (!type) {
@@ -427,14 +442,13 @@ const char* ECM(char* Source, char* Dest) {
 		_itoa_s(errorCodefin, buff, 2);
 		ss.append(buff);
 
-		fclose(fin);
+		TryCloseFileStream();
 		return ss.c_str();
 	}
 
 	ecmify(fin, fout);
 
-	fclose(fout);
-	fclose(fin);
+	TryCloseFileStream();
 
 
 

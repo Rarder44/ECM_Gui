@@ -1,9 +1,8 @@
-
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
 #include <string.h>
+#include "ReturnObj.h"
 
 using namespace std;
 
@@ -16,7 +15,6 @@ using namespace std;
 static ecc_uint8 ecc_f_lut[256];
 static ecc_uint8 ecc_b_lut[256];
 static ecc_uint32 edc_lut[256];
-
 
 
 
@@ -59,10 +57,9 @@ static void eccedc_init(void) {
 		for (j = 0; j < 8; j++) edc = (edc >> 1) ^ (edc & 1 ? 0xD8018001 : 0);
 		edc_lut[i] = edc;
 	}
-	
 }
 
-ecc_uint32 edc_partial_computeblock(
+ecc_uint32 edc_computeblock(
 	ecc_uint32  edc,
 	const ecc_uint8  *src,
 	ecc_uint16  size
@@ -71,12 +68,12 @@ ecc_uint32 edc_partial_computeblock(
 	return edc;
 }
 
-void edc_computeblock(
+void edc_computeblock_unECM(
 	const ecc_uint8  *src,
 	ecc_uint16  size,
 	ecc_uint8  *dest
 	) {
-	ecc_uint32 edc = edc_partial_computeblock(0, src, size);
+	ecc_uint32 edc = edc_computeblock(0, src, size);
 	dest[0] = (edc >> 0) & 0xFF;
 	dest[1] = (edc >> 8) & 0xFF;
 	dest[2] = (edc >> 16) & 0xFF;
@@ -84,7 +81,7 @@ void edc_computeblock(
 }
 
 
-static void ecc_computeblock(
+static void ecc_computeblock_UnECM(
 	ecc_uint8 *src,
 	ecc_uint32 major_count,
 	ecc_uint32 minor_count,
@@ -110,22 +107,21 @@ static void ecc_computeblock(
 		dest[major] = ecc_a;
 		dest[major + major_count] = ecc_a ^ ecc_b;
 	}
+
 }
 
 
-static void ecc_generate(
-	ecc_uint8 *sector,
-	int        zeroaddress
-	) {
+static void ecc_generate_UnECM(	ecc_uint8 *sector,	int        zeroaddress	)
+{
 	ecc_uint8 address[4], i;
 
 	if (zeroaddress) for (i = 0; i < 4; i++) {
 		address[i] = sector[12 + i];
 		sector[12 + i] = 0;
 	}
-	ecc_computeblock(sector + 0xC, 86, 24, 2, 86, sector + 0x81C);
+	ecc_computeblock_UnECM(sector + 0xC, 86, 24, 2, 86, sector + 0x81C);
 
-	ecc_computeblock(sector + 0xC, 52, 43, 86, 88, sector + 0x8C8);
+	ecc_computeblock_UnECM(sector + 0xC, 52, 43, 86, 88, sector + 0x8C8);
 
 	if (zeroaddress) for (i = 0; i < 4; i++) sector[12 + i] = address[i];
 }
@@ -136,21 +132,21 @@ void eccedc_generate(ecc_uint8 *sector, int type) {
 	switch (type) {
 	case 1:
 
-		edc_computeblock(sector + 0x00, 0x810, sector + 0x810);
+		edc_computeblock_unECM(sector + 0x00, 0x810, sector + 0x810);
 
 		for (i = 0; i < 8; i++) sector[0x814 + i] = 0;
 
-		ecc_generate(sector, 0);
+		ecc_generate_UnECM(sector, 0);
 		break;
 	case 2: 
 			
-		edc_computeblock(sector + 0x10, 0x808, sector + 0x818);
+		edc_computeblock_unECM(sector + 0x10, 0x808, sector + 0x818);
 
-		ecc_generate(sector, 1);
+		ecc_generate_UnECM(sector, 1);
 		break;
 	case 3: 
 			
-		edc_computeblock(sector + 0x10, 0x91C, sector + 0x92C);
+		edc_computeblock_unECM(sector + 0x10, 0x91C, sector + 0x92C);
 		break;
 	}
 }
@@ -214,7 +210,7 @@ int unecmify(
 				int b = num;
 				if (b > 2352) b = 2352;
 				if (fread(sector, 1, b, in) != b) goto uneof;
-				checkedc = edc_partial_computeblock(checkedc, sector, b);
+				checkedc = edc_computeblock(checkedc, sector, b);
 				fwrite(sector, 1, b, out);
 				num -= b;
 				setcounter(ftell(in));
@@ -230,7 +226,7 @@ int unecmify(
 					if (fread(sector + 0x00C, 1, 0x003, in) != 0x003) goto uneof;
 					if (fread(sector + 0x010, 1, 0x800, in) != 0x800) goto uneof;
 					eccedc_generate(sector, 1);
-					checkedc = edc_partial_computeblock(checkedc, sector, 2352);
+					checkedc = edc_computeblock(checkedc, sector, 2352);
 					fwrite(sector, 2352, 1, out);
 					setcounter(ftell(in));
 					break;
@@ -242,7 +238,7 @@ int unecmify(
 					sector[0x12] = sector[0x16];
 					sector[0x13] = sector[0x17];
 					eccedc_generate(sector, 2);
-					checkedc = edc_partial_computeblock(checkedc, sector + 0x10, 2336);
+					checkedc = edc_computeblock(checkedc, sector + 0x10, 2336);
 					fwrite(sector + 0x10, 2336, 1, out);
 					setcounter(ftell(in));
 					break;
@@ -254,7 +250,7 @@ int unecmify(
 					sector[0x12] = sector[0x16];
 					sector[0x13] = sector[0x17];
 					eccedc_generate(sector, 3);
-					checkedc = edc_partial_computeblock(checkedc, sector + 0x10, 2336);
+					checkedc = edc_computeblock(checkedc, sector + 0x10, 2336);
 					fwrite(sector + 0x10, 2336, 1, out);
 					setcounter(ftell(in));
 					break;
