@@ -59,5 +59,15 @@ namespace ECM_Gui.Properties {
                 resourceCulture = value;
             }
         }
+        
+        /// <summary>
+        ///   Cerca una risorsa localizzata di tipo System.Byte[].
+        /// </summary>
+        internal static byte[] ECM_Lib {
+            get {
+                object obj = ResourceManager.GetObject("ECM_Lib", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
     }
 }

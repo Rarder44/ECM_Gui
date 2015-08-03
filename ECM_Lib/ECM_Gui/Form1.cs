@@ -27,7 +27,7 @@ namespace ECM_Gui
             InitializeComponent();
             GlobVar.InitGlobVar();
 
-            foreach(Tuple<string,string> t in GlobVar.ResourceToExtract)
+            foreach(Tuple<byte[],string> t in GlobVar.ResourceToExtract)
                 ResourceExtractor.ExtractResourceToFile(t.Item1, t.Item2);
 
             GlobVar.Status = StatusApp.Waiting;

@@ -16,7 +16,7 @@ namespace ECM_Gui
 
         public static StatusApp Status =StatusApp.Starting;
 
-        public static List<Tuple<string, string>> ResourceToExtract = new List<Tuple<string, string>>();
+        public static List<Tuple<byte[], string>> ResourceToExtract = new List<Tuple<byte[], string>>();
 
 
         public static void InitGlobVar()
@@ -34,7 +34,7 @@ namespace ECM_Gui
             for (int i = 0; i < ECMExtensions.Count; i++)
                 ECMExtensions[i] = ECMExtensions[i].ToUpper();
 
-            ResourceToExtract.Add(new Tuple<string, string>("ECM_Lib.dll", "ECM_Lib.dll"));
+            ResourceToExtract.Add(new Tuple<byte[], string>(ECM_Gui.Properties.Resources.ECM_Lib, "ECM_Lib.dll"));
 
         } 
     }
