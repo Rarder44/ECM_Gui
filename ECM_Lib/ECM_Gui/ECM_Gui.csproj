@@ -69,6 +69,7 @@
     <Compile Include="GlobVar.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="ReturnObj.cs" />
     <Compile Include="Services\ECMService.cs" />
     <Compile Include="ToConvertObj.cs" />
     <Compile Include="Util\ResourceExtractor.cs" />

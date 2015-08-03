@@ -37,5 +37,28 @@ namespace ECM_Gui
             }
             Controls.AddVertical(new ConvertObjControl(o));
         }
+
+        public void RemoveConvertObjControl(ConvertObjControl c)
+        {
+            if (this.InvokeRequired)
+            {
+                this.Invoke((MethodInvoker)delegate { RemoveConvertObjControl(c); });
+            }
+            else
+            {
+                Controls.Remove(c);
+                RelocateControls();
+            }
+        }
+
+        public void RelocateControls()
+        {
+            int y = 0;
+            foreach (Control c in Controls)
+            {
+                c.Location = new Point(c.Location.X, y);
+                y = c.Location.Y + c.Size.Height;                   
+            }
+        }
     }
 }

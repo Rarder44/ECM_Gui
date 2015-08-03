@@ -29,8 +29,8 @@ namespace ECM_Gui
 
             foreach(Tuple<string,string> t in GlobVar.ResourceToExtract)
                 ResourceExtractor.ExtractResourceToFile(t.Item1, t.Item2);
-            
-           
+
+            GlobVar.Status = StatusApp.Waiting;
         }
 
         private void Form1_Load(object sender, EventArgs e)

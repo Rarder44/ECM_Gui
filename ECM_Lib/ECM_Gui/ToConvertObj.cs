@@ -8,6 +8,7 @@ using ECM_Gui.ClassExtension;
 using ECM_Gui.Services;
 using System.Threading;
 using System.Windows.Forms;
+using System.Runtime.InteropServices;
 
 namespace ECM_Gui
 {
@@ -96,7 +97,7 @@ namespace ECM_Gui
         public event ProgressCallback Progress;
 
 
-        public delegate void DoneCallback(StatusConvert sc);
+        public delegate void DoneCallback(StatusConvert sc,string msg = "");
         /// <summary>
         /// Quando il Convert termina
         /// </summary>
@@ -116,17 +117,40 @@ namespace ECM_Gui
                            Progress(value);
                    };
 
-                    ECMService.ConvertToECM(_Source.FullName, _Dest.FullName, callback);
-                    GlobVar.Status = StatusApp.Waiting;
+                    ReturnObj v = new ReturnObj();
+                    
+                    if ( Action==ConvertAction.ToECM)
+                        v = ECMService.ECM(_Source.FullName, _Dest.FullName, callback);
+                    else if (Action == ConvertAction.ToIMG)
+                        v = ECMService.UnECM(_Source.FullName, _Dest.FullName, callback);
+
+
+                    if (v.errnum!=0 )
+                    {
+                        if (Done != null)
+                            Done(StatusConvert.Error,v.errstr);
+                    }
+                    else
+                    {
+                        if (Done != null)
+                            Done(StatusConvert.Complete);
+                    }                   
+                }
+                catch(ThreadAbortException ex)
+                {
                     if (Done != null)
-                        Done(StatusConvert.Complete);
+                        Done(StatusConvert.Aborted);
                 }
                 catch(Exception ex)
                 {
                     if (Done != null)
-                        Done(StatusConvert.Error);
+                        Done(StatusConvert.Error,ex.Message);
                 }
-                    
+                finally
+                {
+                    GlobVar.Status = StatusApp.Waiting;
+                }
+                
             });
             Conversion.Start();
             

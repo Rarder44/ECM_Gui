@@ -16,11 +16,10 @@ namespace ECM_Gui
         private StatusObj _Status = StatusObj.Waiting;
 
 
-
         private string TextConvert = "Converti";
         private string TextStop = "Stop";
 
-
+        
         public ToConvertObj objToConvert
         {
             get
@@ -30,51 +29,51 @@ namespace ECM_Gui
             set
             {
                 _objToConvert = value;
-                textBox1.Text = _objToConvert.Source.FullName;
-                textBox2.Text = _objToConvert.Dest.FullName;
+                textBox_source.Text = _objToConvert.Source.FullName;
+                textBox_dest.Text = _objToConvert.Dest.FullName;
             }
         }
 
-        delegate void InvokeChangeStatusDel(StatusObj s);
-        private void InvocheChangeStatus(StatusObj s)
+        private void ChangeStatus(StatusObj s)
         {
-            _Status = s;
-            if (_Status == StatusObj.Complete)
+            if (this.InvokeRequired)
             {
-                progressBar1.Value = 100;
-                this.BackColor = Color.FromArgb(128, 255, 128);
-                button1.Visible = false;
-                button1.Enabled = false;
-            }
-                
-            else if (_Status == StatusObj.Error)
-            {
-                progressBar1.Value = 0;
-                this.BackColor = Color.FromArgb(255, 108, 108);
-                button1.Visible = false;
-                button1.Enabled = false;
-            }
-            else if (_Status == StatusObj.Stopping)
-            {
-                this.BackColor = SystemColors.Control;
-                button1.Enabled = false;
-                button1.Visible = true;
-            }
-            else if (_Status == StatusObj.Waiting)
-            {
-                this.BackColor = SystemColors.Control;
-                button1.Text = TextConvert;
-                button1.Enabled = true;
-                button1.Visible = true;
-            }
-            else if (_Status == StatusObj.Working)
-            {
-                this.BackColor = SystemColors.Control;
-                button1.Text = TextStop;
-                button1.Enabled = true;
-                button1.Visible = true;
-            }
+                this.Invoke((MethodInvoker)delegate { ChangeStatus(s); });
 
+            }
+            else
+            {
+                _Status = s;
+                if (_Status == StatusObj.Complete)
+                {
+                    progressBar1.Value = 100;
+                    this.BackColor = Color.FromArgb(128, 255, 128);
+                    button1.Visible = false;
+                    button1.Enabled = false;
+                }
+
+                else if (_Status == StatusObj.Error)
+                {
+                    progressBar1.Value = 0;
+                    this.BackColor = Color.FromArgb(255, 108, 108);
+                    button1.Visible = false;
+                    button1.Enabled = false;
+                }
+                else if (_Status == StatusObj.Waiting)
+                {
+                    this.BackColor = SystemColors.Control;
+                    button1.Text = TextConvert;
+                    button1.Enabled = true;
+                    button1.Visible = true;
+                }
+                else if (_Status == StatusObj.Working)
+                {
+                    this.BackColor = SystemColors.Control;
+                    button1.Text = TextStop;
+                    button1.Enabled = true;
+                    button1.Visible = true;
+                }
+            }
         }
 
         public StatusObj Status
@@ -85,14 +84,7 @@ namespace ECM_Gui
             }
             set
             {
-
-                if(this.InvokeRequired)
-                    this.Invoke(new InvokeChangeStatusDel(InvocheChangeStatus), new object[] { value });
-                
-                else
-                    InvocheChangeStatus(value);
-                
-               
+                ChangeStatus(value);
             }
         }
 
@@ -112,6 +104,7 @@ namespace ECM_Gui
         }
         private void button1_Click(object sender, EventArgs e)
         {
+            
             if (_Status == StatusObj.Waiting)
             {
                 Status = StatusObj.Working;
@@ -127,24 +120,42 @@ namespace ECM_Gui
             }
             else
                 MessageBox.Show("La conversione è già stata eseguita");
+            
+           
+           
         }
 
-        private void _objToConvert_Done(StatusConvert sc)
+        private void _objToConvert_Done(StatusConvert sc,String msg="")
         {
             
 
             if (sc == StatusConvert.Complete)
                 Status = StatusObj.Complete;
             else if (sc == StatusConvert.Error)
+            {
                 Status = StatusObj.Error;
+                SetErrMsg(msg);
+            }
             else if (sc == StatusConvert.Aborted)
                 Status = StatusObj.Waiting;
         }
 
         private void _objToConvert_Progress(int progress)
         {
-            progressBar1.Invoke((MethodInvoker)delegate { progressBar1.Value = progress; });
-            
+            if(progressBar1.InvokeRequired)
+                progressBar1.Invoke((MethodInvoker)delegate { _objToConvert_Progress(progress); });
+            else
+                progressBar1.Value = progress;
+
+        }
+
+
+        private void SetErrMsg(String msg)
+        {
+            if (textBox_err.InvokeRequired)
+                textBox_err.Invoke((MethodInvoker)delegate { SetErrMsg(msg); });
+            else
+                textBox_err.Text = msg;
         }
         public enum StatusObj
         {
@@ -153,6 +164,14 @@ namespace ECM_Gui
             Stopping,
             Complete,
             Error
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            if( _Status!=StatusObj.Stopping && _Status != StatusObj.Working)
+                if (Parent is ConvertObjPanel)
+                    ((ConvertObjPanel)Parent).RemoveConvertObjControl(this);
+            
         }
     }
     

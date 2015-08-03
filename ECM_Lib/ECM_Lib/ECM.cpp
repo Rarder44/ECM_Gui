@@ -19,26 +19,29 @@ static ecc_uint32 edc_lut[256];
 
 
 
-const char* ECM(char* Source, char* Dest);
+ReturnObj* ECM(char* Source, char* Dest);
+ReturnObj* UnECM(char* Source, char* Dest);
 
 FILE *fin, *fout;
 
 
+typedef void(__stdcall * ProgressCallback)(int);
+ProgressCallback progFunction;
 
 extern "C"
 {
 	
-
-	typedef void(__stdcall * ProgressCallback)(int);
-	ProgressCallback progFunction;
 	__declspec(dllexport) ReturnObj* ConvertToECM(char* Source, char* Dest,  ProgressCallback Progression)
 	{
 		progFunction = Progression;
-		ECM(Source, Dest);
-		return new ReturnObj(0,"");
+		return ECM(Source, Dest);
 	}
 
-	
+	__declspec(dllexport) ReturnObj* ConvertToIMG(char* Source, char* Dest, ProgressCallback Progression)
+	{
+		progFunction = Progression;
+		return UnECM(Source, Dest);
+	}
 
 	__declspec(dllexport) void TryCloseFinStream()
 	{
@@ -62,7 +65,14 @@ extern "C"
 		TryCloseFoutStream();
 	}
 
-
+	__declspec(dllexport) int GetIntErr(ReturnObj* p)
+	{
+		return p->errnum;
+	}
+	__declspec(dllexport) const char* GetStringErr(ReturnObj* p)
+	{
+		return p->errstr;
+	}
 }
 
 
@@ -79,36 +89,81 @@ static void eccedc_init(void) {
 	}
 }
 
-ecc_uint32 edc_computeblock(
-	ecc_uint32  edc,
-	const ecc_uint8  *src,
-	ecc_uint16  size
-	) {
+
+ecc_uint32 edc_computeblock(ecc_uint32  edc,const ecc_uint8  *src,ecc_uint16  size) {
 	while (size--) edc = (edc >> 8) ^ edc_lut[(edc ^ (*src++)) & 0xFF];
 	return edc;
+}
+void edc_computeblock_unECM(const ecc_uint8  *src,ecc_uint16  size,ecc_uint8  *dest) {
+	ecc_uint32 edc = edc_computeblock(0, src, size);
+	dest[0] = (edc >> 0) & 0xFF;
+	dest[1] = (edc >> 8) & 0xFF;
+	dest[2] = (edc >> 16) & 0xFF;
+	dest[3] = (edc >> 24) & 0xFF;
+}
+
+static void ecc_computeblock_UnECM(ecc_uint8 *src,ecc_uint32 major_count,ecc_uint32 minor_count,ecc_uint32 major_mult,ecc_uint32 minor_inc,ecc_uint8 *dest) {
+	ecc_uint32 size = major_count * minor_count;
+	ecc_uint32 major, minor;
+	for (major = 0; major < major_count; major++) {
+		ecc_uint32 index = (major >> 1) * major_mult + (major & 1);
+		ecc_uint8 ecc_a = 0;
+		ecc_uint8 ecc_b = 0;
+		for (minor = 0; minor < minor_count; minor++) {
+			ecc_uint8 temp = src[index];
+			index += minor_inc;
+			if (index >= size) index -= size;
+			ecc_a ^= temp;
+			ecc_b ^= temp;
+			ecc_a = ecc_f_lut[ecc_a];
+		}
+		ecc_a = ecc_b_lut[ecc_f_lut[ecc_a] ^ ecc_b];
+		dest[major] = ecc_a;
+		dest[major + major_count] = ecc_a ^ ecc_b;
+	}
+
+}
+static void ecc_generate_UnECM(ecc_uint8 *sector, int zeroaddress)
+{
+	ecc_uint8 address[4], i;
+
+	if (zeroaddress) for (i = 0; i < 4; i++) {
+		address[i] = sector[12 + i];
+		sector[12 + i] = 0;
+	}
+	ecc_computeblock_UnECM(sector + 0xC, 86, 24, 2, 86, sector + 0x81C);
+
+	ecc_computeblock_UnECM(sector + 0xC, 52, 43, 86, 88, sector + 0x8C8);
+
+	if (zeroaddress) for (i = 0; i < 4; i++) sector[12 + i] = address[i];
+}
+void eccedc_generate(ecc_uint8 *sector, int type) {
+	ecc_uint32 i;
+	switch (type) {
+	case 1:
+
+		edc_computeblock_unECM(sector + 0x00, 0x810, sector + 0x810);
+
+		for (i = 0; i < 8; i++) sector[0x814 + i] = 0;
+
+		ecc_generate_UnECM(sector, 0);
+		break;
+	case 2:
+
+		edc_computeblock_unECM(sector + 0x10, 0x808, sector + 0x818);
+
+		ecc_generate_UnECM(sector, 1);
+		break;
+	case 3:
+
+		edc_computeblock_unECM(sector + 0x10, 0x91C, sector + 0x92C);
+		break;
+	}
 }
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-static int ecc_computeblock_ECM(
-	ecc_uint8 *src,
-	ecc_uint32 major_count,
-	ecc_uint32 minor_count,
-	ecc_uint32 major_mult,
-	ecc_uint32 minor_inc,
-	ecc_uint8 *dest
-	) {
+static int ecc_computeblock_ECM(ecc_uint8 *src,ecc_uint32 major_count,ecc_uint32 minor_count,ecc_uint32 major_mult,ecc_uint32 minor_inc,ecc_uint8 *dest) {
 	ecc_uint32 size = major_count * minor_count;
 	ecc_uint32 major, minor;
 	for (major = 0; major < major_count; major++) {
@@ -131,7 +186,7 @@ static int ecc_computeblock_ECM(
 }
 
 
-static int ecc_generate_ECM(	ecc_uint8 *sector,	int        zeroaddress,	ecc_uint8 *dest	) 
+static int ecc_generate_ECM(ecc_uint8 *sector,int zeroaddress,ecc_uint8 *dest) 
 {
 	int r;
 	ecc_uint8 address[4], i;
@@ -147,8 +202,6 @@ static int ecc_generate_ECM(	ecc_uint8 *sector,	int        zeroaddress,	ecc_uint
 	if (zeroaddress) for (i = 0; i < 4; i++) sector[12 + i] = address[i];
 	return r;
 }
-
-
 
 int check_type(unsigned char *sector, int canbetype1) {
 	int canbetype2 = 1;
@@ -231,11 +284,7 @@ int check_type(unsigned char *sector, int canbetype1) {
 }
 
 
-void write_type_count(
-	FILE *out,
-	unsigned type,
-	unsigned count
-	) {
+void write_type_count(FILE *out,unsigned type,unsigned count) {
 	count--;
 	fputc(((count >= 32) << 7) | ((count & 31) << 2) | type, out);
 	count >>= 5;
@@ -245,18 +294,30 @@ void write_type_count(
 	}
 }
 
-/***************************************************************************/
 
+
+unsigned mycounter;
 unsigned mycounter_analyze;
 unsigned mycounter_encode;
 unsigned mycounter_total;
 
+
 void resetcounter(unsigned total) {
+	mycounter = 0;
 	mycounter_analyze = 0;
 	mycounter_encode = 0;
 	mycounter_total = total;
 }
-
+void setcounter(unsigned n) {
+	if ((n >> 20) != (mycounter >> 20)) {
+		unsigned a = (n + 64) / 128;
+		unsigned d = (mycounter_total + 64) / 128;
+		if (!d) d = 1;
+		if (progFunction)
+			progFunction((int)((100 * a) / d));
+	}
+	mycounter = n;
+}
 void setcounter_analyze(unsigned n) {
 	if ((n >> 20) != (mycounter_analyze >> 20)) {
 		unsigned a = (n + 64) / 128;
@@ -272,7 +333,6 @@ void setcounter_analyze(unsigned n) {
 	}
 	mycounter_analyze = n;
 }
-
 void setcounter_encode(unsigned n) {
 	if ((n >> 20) != (mycounter_encode >> 20)) {
 		unsigned a = (mycounter_analyze + 64) / 128;
@@ -330,7 +390,6 @@ unsigned in_flush(unsigned edc,unsigned type,unsigned count,FILE *in,FILE *out) 
 	}
 	return edc;
 }
-
 
 unsigned char inputqueue[1048576 + 4];
 
@@ -417,9 +476,7 @@ int ecmify(FILE *in, FILE *out) {
 	return 0;
 }
 
-/***************************************************************************/
-
-const char* ECM(char* Source, char* Dest) {
+ReturnObj* ECM(char* Source, char* Dest) {
 	
 	char buff[10];
 	eccedc_init();
@@ -433,7 +490,7 @@ const char* ECM(char* Source, char* Dest) {
 		ss.append("Input: err n ");
 		_itoa_s(errorCodefin, buff, 2);
 		ss.append(buff);
-		return ss.c_str();
+		return new ReturnObj(-1,ss.c_str());
 	}
 	errno_t errorCodefout = fopen_s(&fout, Dest, "wb");
 	if (errorCodefout!=0) {
@@ -443,16 +500,160 @@ const char* ECM(char* Source, char* Dest) {
 		ss.append(buff);
 
 		TryCloseFileStream();
-		return ss.c_str();
+		return new ReturnObj(-1, ss.c_str());
 	}
 
 	ecmify(fin, fout);
 
 	TryCloseFileStream();
+	progFunction = NULL;
 
-
-
-	return "";
+	return new ReturnObj(0,"");
 }
 
 
+int unecmify(FILE *in, FILE *out) {
+	unsigned checkedc = 0;
+	unsigned char sector[2352];
+	unsigned type;
+	unsigned num;
+	fseek(in, 0, SEEK_END);
+	resetcounter(ftell(in));
+	fseek(in, 0, SEEK_SET);
+	if (
+		(fgetc(in) != 'E') ||
+		(fgetc(in) != 'C') ||
+		(fgetc(in) != 'M') ||
+		(fgetc(in) != 0x00)
+		) {
+		fprintf(stderr, "Header not found!\n");
+		goto corrupt;
+	}
+	for (;;) {
+		int c = fgetc(in);
+		int bits = 5;
+		if (c == EOF) goto uneof;
+		type = c & 3;
+		num = (c >> 2) & 0x1F;
+		while (c & 0x80) {
+			c = fgetc(in);
+			if (c == EOF) goto uneof;
+			num |= ((unsigned)(c & 0x7F)) << bits;
+			bits += 7;
+		}
+		if (num == 0xFFFFFFFF) break;
+		num++;
+		if (num >= 0x80000000) goto corrupt;
+		if (!type) {
+			while (num) {
+				int b = num;
+				if (b > 2352) b = 2352;
+				if (fread(sector, 1, b, in) != b) goto uneof;
+				checkedc = edc_computeblock(checkedc, sector, b);
+				fwrite(sector, 1, b, out);
+				num -= b;
+				setcounter(ftell(in));
+			}
+		}
+		else {
+			while (num--) {
+				memset(sector, 0, sizeof(sector));
+				memset(sector + 1, 0xFF, 10);
+				switch (type) {
+				case 1:
+					sector[0x0F] = 0x01;
+					if (fread(sector + 0x00C, 1, 0x003, in) != 0x003) goto uneof;
+					if (fread(sector + 0x010, 1, 0x800, in) != 0x800) goto uneof;
+					eccedc_generate(sector, 1);
+					checkedc = edc_computeblock(checkedc, sector, 2352);
+					fwrite(sector, 2352, 1, out);
+					setcounter(ftell(in));
+					break;
+				case 2:
+					sector[0x0F] = 0x02;
+					if (fread(sector + 0x014, 1, 0x804, in) != 0x804) goto uneof;
+					sector[0x10] = sector[0x14];
+					sector[0x11] = sector[0x15];
+					sector[0x12] = sector[0x16];
+					sector[0x13] = sector[0x17];
+					eccedc_generate(sector, 2);
+					checkedc = edc_computeblock(checkedc, sector + 0x10, 2336);
+					fwrite(sector + 0x10, 2336, 1, out);
+					setcounter(ftell(in));
+					break;
+				case 3:
+					sector[0x0F] = 0x02;
+					if (fread(sector + 0x014, 1, 0x918, in) != 0x918) goto uneof;
+					sector[0x10] = sector[0x14];
+					sector[0x11] = sector[0x15];
+					sector[0x12] = sector[0x16];
+					sector[0x13] = sector[0x17];
+					eccedc_generate(sector, 3);
+					checkedc = edc_computeblock(checkedc, sector + 0x10, 2336);
+					fwrite(sector + 0x10, 2336, 1, out);
+					setcounter(ftell(in));
+					break;
+				}
+			}
+		}
+	}
+	if (fread(sector, 1, 4, in) != 4) goto uneof;
+	fprintf(stderr, "Decoded %ld bytes -> %ld bytes\n", ftell(in), ftell(out));
+	if (
+		(sector[0] != ((checkedc >> 0) & 0xFF)) ||
+		(sector[1] != ((checkedc >> 8) & 0xFF)) ||
+		(sector[2] != ((checkedc >> 16) & 0xFF)) ||
+		(sector[3] != ((checkedc >> 24) & 0xFF))
+		) {
+		fprintf(stderr, "EDC error (%08X, should be %02X%02X%02X%02X)\n",
+			checkedc,
+			sector[3],
+			sector[2],
+			sector[1],
+			sector[0]
+			);
+		goto corrupt;
+	}
+	fprintf(stderr, "Done; file is OK\n");
+	return 0;
+uneof:
+	fprintf(stderr, "Unexpected EOF!\n");
+corrupt:
+	fprintf(stderr, "Corrupt ECM file!\n");
+	return 1;
+}
+
+ReturnObj* UnECM(char* Source, char* Dest) {
+
+
+	eccedc_init();
+	char buff[10];
+
+	errno_t errorCodefin = fopen_s(&fin, Source, "rb");
+
+	if (errorCodefin != 0) {
+		string ss;
+		ss.append("Input: err n ");
+		_itoa_s(errorCodefin, buff, 2);
+		ss.append(buff);
+		return new ReturnObj(-1, ss.c_str());
+	}
+
+
+	errno_t errorCodefout = fopen_s(&fout, Dest, "wb");
+	if (errorCodefout != 0) {
+		string ss;
+		ss.append("Output: err n ");
+		_itoa_s(errorCodefin, buff, 2);
+		ss.append(buff);
+
+		TryCloseFileStream();
+		return new ReturnObj(-1, ss.c_str());
+	}
+
+	unecmify(fin, fout);
+
+	TryCloseFileStream();
+	progFunction = NULL;
+	return new ReturnObj(0, "");
+}
