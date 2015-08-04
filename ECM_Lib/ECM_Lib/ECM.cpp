@@ -393,7 +393,7 @@ unsigned in_flush(unsigned edc,unsigned type,unsigned count,FILE *in,FILE *out) 
 
 unsigned char inputqueue[1048576 + 4];
 
-int ecmify(FILE *in, FILE *out) {
+ReturnObj* ecmify(FILE *in, FILE *out) {
 	unsigned inedc = 0;
 	int curtype = -1;
 	int curtypecount = 0;
@@ -473,7 +473,7 @@ int ecmify(FILE *in, FILE *out) {
 	fputc((inedc >> 8) & 0xFF, out);
 	fputc((inedc >> 16) & 0xFF, out);
 	fputc((inedc >> 24) & 0xFF, out);
-	return 0;
+	return new ReturnObj(0, "");
 }
 
 ReturnObj* ECM(char* Source, char* Dest) {
@@ -503,16 +503,16 @@ ReturnObj* ECM(char* Source, char* Dest) {
 		return new ReturnObj(-1, ss.c_str());
 	}
 
-	ecmify(fin, fout);
+	ReturnObj* o =ecmify(fin, fout);
 
 	TryCloseFileStream();
 	progFunction = NULL;
 
-	return new ReturnObj(0,"");
+	return o;
 }
 
 
-int unecmify(FILE *in, FILE *out) {
+ReturnObj* unecmify(FILE *in, FILE *out) {
 	unsigned checkedc = 0;
 	unsigned char sector[2352];
 	unsigned type;
@@ -526,7 +526,6 @@ int unecmify(FILE *in, FILE *out) {
 		(fgetc(in) != 'M') ||
 		(fgetc(in) != 0x00)
 		) {
-		fprintf(stderr, "Header not found!\n");
 		goto corrupt;
 	}
 	for (;;) {
@@ -598,29 +597,15 @@ int unecmify(FILE *in, FILE *out) {
 		}
 	}
 	if (fread(sector, 1, 4, in) != 4) goto uneof;
-	fprintf(stderr, "Decoded %ld bytes -> %ld bytes\n", ftell(in), ftell(out));
-	if (
-		(sector[0] != ((checkedc >> 0) & 0xFF)) ||
-		(sector[1] != ((checkedc >> 8) & 0xFF)) ||
-		(sector[2] != ((checkedc >> 16) & 0xFF)) ||
-		(sector[3] != ((checkedc >> 24) & 0xFF))
-		) {
-		fprintf(stderr, "EDC error (%08X, should be %02X%02X%02X%02X)\n",
-			checkedc,
-			sector[3],
-			sector[2],
-			sector[1],
-			sector[0]
-			);
+	if ((sector[0] != ((checkedc >> 0) & 0xFF)) ||	(sector[1] != ((checkedc >> 8) & 0xFF)) ||	(sector[2] != ((checkedc >> 16) & 0xFF)) ||	(sector[3] != ((checkedc >> 24) & 0xFF))	) 
+	{
 		goto corrupt;
 	}
-	fprintf(stderr, "Done; file is OK\n");
-	return 0;
+	return new ReturnObj(0, "");
 uneof:
-	fprintf(stderr, "Unexpected EOF!\n");
+	return new ReturnObj(-1, "EOF Inaspettata");
 corrupt:
-	fprintf(stderr, "Corrupt ECM file!\n");
-	return 1;
+	return new ReturnObj(-1, "ECM file Corrotto");
 }
 
 ReturnObj* UnECM(char* Source, char* Dest) {
@@ -651,9 +636,9 @@ ReturnObj* UnECM(char* Source, char* Dest) {
 		return new ReturnObj(-1, ss.c_str());
 	}
 
-	unecmify(fin, fout);
+	ReturnObj* o=unecmify(fin, fout);
 
 	TryCloseFileStream();
 	progFunction = NULL;
-	return new ReturnObj(0, "");
+	return o;
 }

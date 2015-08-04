@@ -35,7 +35,8 @@ namespace ECM_Gui
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            AllocConsole();
+            //Start Consolle for debug Lib
+            //AllocConsole();
 
         }
 
