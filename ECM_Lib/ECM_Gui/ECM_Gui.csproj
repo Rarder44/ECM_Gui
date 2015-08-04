@@ -46,8 +46,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ClassExtension\ButtonExtension.cs" />
     <Compile Include="ClassExtension\ControlCollectionExtension.cs" />
     <Compile Include="ClassExtension\FileInfoExtension.cs" />
+    <Compile Include="ClassExtension\ProgressBarExtension.cs" />
     <Compile Include="GUI\ConvertObjPanel.cs">
       <SubType>UserControl</SubType>
     </Compile>

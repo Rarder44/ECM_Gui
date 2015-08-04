@@ -103,60 +103,15 @@ namespace ECM_Gui
         /// </summary>
         public event DoneCallback Done;
 
-        public void Convert()
+        public void AsyncConvert()
         {
-            GlobVar.Status = StatusApp.OnConvertSingle;
-
-            Conversion = new Thread(() => {
-                try
-                {
-                   ECMService.ProgressCallback callback =
-                   (value) =>
-                   {
-                       if (Progress != null)
-                           Progress(value);
-                   };
-
-                    ReturnObj v = new ReturnObj();
-                    
-                    if ( Action==ConvertAction.ToECM)
-                        v = ECMService.ECM(_Source.FullName, _Dest.FullName, callback);
-                    else if (Action == ConvertAction.ToIMG)
-                        v = ECMService.UnECM(_Source.FullName, _Dest.FullName, callback);
-
-
-                    if (v.errnum!=0 )
-                    {
-                        if (Done != null)
-                            Done(StatusConvert.Error,v.errstr);
-                    }
-                    else
-                    {
-                        if (Done != null)
-                            Done(StatusConvert.Complete);
-                    }                   
-                }
-                catch(ThreadAbortException ex)
-                {
-                    if (Done != null)
-                        Done(StatusConvert.Aborted);
-                }
-                catch(Exception ex)
-                {
-                    if (Done != null)
-                        Done(StatusConvert.Error,ex.Message);
-                }
-                finally
-                {
-                    GlobVar.Status = StatusApp.Waiting;
-                }
-                
-            });
+            
+            Conversion = new Thread(Convert);
             Conversion.Start();
             
         }
 
-        public void Stop()
+        public void AsyncStop()
         {
             new Thread(() =>
             {
@@ -172,7 +127,55 @@ namespace ECM_Gui
             }).Start();
         }
 
+        public void Convert()
+        {
+            try
+            {
+                if(GlobVar.Status != StatusApp.OnConvertMultiple)
+                    GlobVar.Status = StatusApp.OnConvertSingle;
 
+                ECMService.ProgressCallback callback =
+                (value) =>
+                {
+                    if (Progress != null)
+                        Progress(value);
+                };
+
+                ReturnObj v = new ReturnObj();
+
+                if (Action == ConvertAction.ToECM)
+                    v = ECMService.ECM(_Source.FullName, _Dest.FullName, callback);
+                else if (Action == ConvertAction.ToIMG)
+                    v = ECMService.UnECM(_Source.FullName, _Dest.FullName, callback);
+
+
+                if (v.errnum != 0)
+                {
+                    if (Done != null)
+                        Done(StatusConvert.Error, v.errstr);
+                }
+                else
+                {
+                    if (Done != null)
+                        Done(StatusConvert.Complete);
+                }
+            }
+            catch (ThreadAbortException ex)
+            {
+                if (Done != null)
+                    Done(StatusConvert.Aborted);
+            }
+            catch (Exception ex)
+            {
+                if (Done != null)
+                    Done(StatusConvert.Error, ex.Message);
+            }
+            finally
+            {
+                if (GlobVar.Status != StatusApp.OnConvertMultiple)
+                    GlobVar.Status = StatusApp.Waiting;
+            }
+        }
 
 
         /// <summary>

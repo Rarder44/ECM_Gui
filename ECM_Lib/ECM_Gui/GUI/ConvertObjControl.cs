@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using ECM_Gui.ClassExtension;
 
 namespace ECM_Gui
 {
@@ -64,14 +65,18 @@ namespace ECM_Gui
                     this.BackColor = SystemColors.Control;
                     button1.Text = TextConvert;
                     button1.Enabled = true;
+                    button2.Enabled = true;
                     button1.Visible = true;
                 }
                 else if (_Status == StatusObj.Working)
                 {
                     this.BackColor = SystemColors.Control;
                     button1.Text = TextStop;
-                    button1.Enabled = true;
                     button1.Visible = true;
+
+                    button1.Enabled = GlobVar.Status != StatusApp.OnConvertMultiple;
+
+                    button2.Enabled = false;
                 }
             }
         }
@@ -104,7 +109,39 @@ namespace ECM_Gui
         }
         private void button1_Click(object sender, EventArgs e)
         {
-            
+
+            AsyncStartStop();
+        }
+
+
+        public void AsyncStartStop()
+        {
+            if (GlobVar.Status == StatusApp.Waiting)
+            {
+                if (_Status == StatusObj.Waiting)
+                {
+                    Status = StatusObj.Working;
+                    _objToConvert.Progress += _objToConvert_Progress;
+                    _objToConvert.Done += _objToConvert_Done;
+
+                    _objToConvert.AsyncConvert();
+                }
+                else if (_Status == StatusObj.Working)
+                {
+                    Status = StatusObj.Stopping;
+                    _objToConvert.AsyncStop();
+                }
+                else
+                    MessageBox.Show("La conversione è già stata eseguita");
+            }
+            else
+            {
+                MessageBox.Show("completare l'operazione in corso e riprovare");
+            }
+        }
+
+        public void Convert(bool silent=false)
+        {
             if (_Status == StatusObj.Waiting)
             {
                 Status = StatusObj.Working;
@@ -113,17 +150,11 @@ namespace ECM_Gui
 
                 _objToConvert.Convert();
             }
-            else if (_Status == StatusObj.Working)
-            {
-                Status = StatusObj.Stopping;
-                _objToConvert.Stop();
-            }
-            else
+            else if( !silent)
                 MessageBox.Show("La conversione è già stata eseguita");
-            
-           
-           
         }
+
+
 
         private void _objToConvert_Done(StatusConvert sc,String msg="")
         {
@@ -168,7 +199,7 @@ namespace ECM_Gui
 
         private void button2_Click(object sender, EventArgs e)
         {
-            if( _Status!=StatusObj.Stopping && _Status != StatusObj.Working)
+            if( _Status!=StatusObj.Stopping && _Status != StatusObj.Working && GlobVar.Status!=StatusApp.OnConvertMultiple)
                 if (Parent is ConvertObjPanel)
                     ((ConvertObjPanel)Parent).RemoveConvertObjControl(this);
             

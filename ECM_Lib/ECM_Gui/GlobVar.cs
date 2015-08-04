@@ -45,7 +45,8 @@ namespace ECM_Gui
         Starting,
         Waiting,
         OnConvertSingle,
-        OnConvertMultiple
+        OnConvertMultiple,
+        OnStoppingMultiple
 
     }
 }

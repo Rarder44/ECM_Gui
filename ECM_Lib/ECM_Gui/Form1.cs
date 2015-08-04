@@ -12,6 +12,7 @@ using System.Windows.Forms;
 using ECM_Gui.ClassExtension;
 using ECM_Gui.Util;
 using ECM_Gui.Services;
+using System.Threading;
 
 namespace ECM_Gui
 {
@@ -22,6 +23,10 @@ namespace ECM_Gui
         [return: MarshalAs(UnmanagedType.Bool)]
         static extern bool AllocConsole();
 
+        private string TextConvert = "Converti Tutti";
+        private string TextStop = "STOP";
+
+
         public Form1()
         {
             InitializeComponent();
@@ -30,6 +35,7 @@ namespace ECM_Gui
             foreach(Tuple<byte[],string> t in GlobVar.ResourceToExtract)
                 ResourceExtractor.ExtractResourceToFile(t.Item1, t.Item2);
 
+            button1.Text = TextConvert;
             GlobVar.Status = StatusApp.Waiting;
         }
 
@@ -74,10 +80,33 @@ namespace ECM_Gui
         {
             if (GlobVar.Status == StatusApp.Waiting)
             {
+                GlobVar.Status = StatusApp.OnConvertMultiple;
+                progressBar_totale.Value = 0;
+                progressBar_totale.Maximum = convertObjPanel1.GetCountConvertObjControl();
+                convertObjPanel1.Done += ConvertObjPanel1_Done;
+                convertObjPanel1.Progress += ConvertObjPanel1_Progress;
+                button1.Text = "FERMA";
+                convertObjPanel1.AsyncStartConvertAll();
 
+            }
+            else if(GlobVar.Status == StatusApp.OnConvertMultiple)
+            {
+                GlobVar.Status = StatusApp.OnStoppingMultiple;
+                convertObjPanel1.AsyncStopAll();
             }
             else
                 MessageBox.Show("completare l'operazione in corso e riprovare");
+        }
+
+        private void ConvertObjPanel1_Progress(int progress)
+        {      
+            progressBar_totale.SetValueInvoke(progress);
+        }
+
+        private void ConvertObjPanel1_Done()
+        {
+            button1.SetTextInvoke(TextConvert);
+            GlobVar.Status = StatusApp.Waiting;
         }
 
         private void button2_Click(object sender, EventArgs e)
